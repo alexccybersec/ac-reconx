@@ -1,0 +1,20 @@
+#Nmap
+
+*.nmap
+*.gnmap
+*.xml
+
+#Logs
+*.log
+
+# Zip archives
+*.zip
+
+# Default vault data
+/ac-reconx-safe/
+
+# Temp
+*.tmp
+
+# Text files
+*.txt

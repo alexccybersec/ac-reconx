@@ -1,0 +1,8 @@
+#compdef ac-reconx-cli
+
+_arguments -s -S \
+    '(-v --verbose)'{-v,--verbose}'[Know more about this recon tool]' \
+    '(-z --zip)'{-z,--zip}'[Collect scan results inside a zip file]' \
+    '(-C --corp-name)'{-C,--corp-name}'[Specify company name]:company:' \
+    '(-T --targets-list)'{-T,--targets-list}'[Specify targets file]:targets file:_files' \
+    '(-q --no-banner)'{-q,--no-banner}'[Do not print the banner]'

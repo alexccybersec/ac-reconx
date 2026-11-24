@@ -1,0 +1,77 @@
+# Copyright section
+# AC-ReconX
+# copyright (c) 2026 Alessandro Cerbone
+# Licensed under MIT license
+# see LICENSE file for details
+
+
+function _ac_rx_completion () {
+	local cur prev
+	local options=(
+	-z --zip
+	-v --verbose
+	-C --corp-name
+	-T --targets-list
+	-q --no-banner
+	)
+
+	cur="${COMP_WORDS[COMP_CWORD]}"
+	prev=""
+
+	if (( COMP_CWORD > 0 ));then
+		prev="${COMP_WORDS[COMP_CWORD-1]}"
+	fi
+
+	# handle arguments requireing a value
+	case "$prev" in
+		-T|--targets-list)
+			COMPREPLY=($(compgen -f -- "$cur"))
+			return
+			;;
+		-C|--corp-name)
+			COMPREPLY=()
+			return
+			;;
+	esac
+
+	# identify used options
+	local -A used_options=()
+	for ((i=1;i<=COMP_CWORD;i++));do
+		case "${COMP_WORDS[i]}" in
+			-v|--verbose)
+				used_options[-v]=1
+				used_options[--verbose]=1
+				;;
+			-q|--no-banner)
+				used_options[-q]=1
+				used_options[--no-banner]=1
+				;;
+			-T|--targets-list)
+				used_options[-T]=1
+				used_options[--targets-list]=1
+				;;
+			-C|--corp-name)
+				used_options[-C]=1
+				used_options[--corp-name]=1
+				;;
+			-z|--zip)
+				used_options[-z]=1
+				used_options[--zip]=1
+				;;
+		esac
+	done
+
+	# available options
+	local available_opts=()
+	for opt in "${options[@]}";do
+		if [[ ! "${used_options[$opt]+_}" ]];then
+			available_opts+=("$opt")
+		fi
+	done
+
+	mapfile -t COMPREPLY < <(compgen -W "${available_opts[*]}" -- "$cur")
+
+}
+
+complete -F _ac_rx_completion ac-reconx-cli
+complete -F _ac_rx_completion ./ac-reconx-cli

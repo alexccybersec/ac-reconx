@@ -1,0 +1,673 @@
+#!/bin/bash
+
+# Copyright section
+# AC-ReconX
+# copyright (c) 2026 Alessandro Cerbone
+# Licensed under MIT license
+# see LICENSE file for details
+
+# Terminal banner function
+BANNER="true"
+function ac_banner(){
+
+	# version and original author
+	AC_V="1.0.0"
+	AC_AUTHOR="Alessandro Cerbone"
+
+
+	# colors and unicode simbols
+	G='\e[1;38;2;20;239;16m'	# custom green
+	R='\e[0m'			# reset
+	W='\033[1;37m'			# white
+	LR='\033[91m'			# light red
+	BR='\033[1;31m'			# bold red
+
+	# check terminal columns
+	if [[ "$(tput cols 2>/dev/null || echo 80)" -lt 115 ]];then
+		printf "%b\n" "${G}=== AC Infrastructure Enumeration Tool v${AC_V} ===${R}"
+        	printf "%b\n" "Author: ${W}${AC_AUTHOR}${R}\n"
+	return
+	fi
+
+	printf "%b\n" "                                                                                     ${LR}-----${R} ${BR} ███${R} ${LR} ---${R}${BR} ██${R}"
+	printf "%b\n" "                                                                                          ${LR}---${R} ${BR}██    ██${R}"
+	printf "%b\n" "${G}          ======================\\\\\\     //==================================================${R}   ${BR} ██  ██${R}"
+	printf "%b\n" " ${G} ===== //${R}  ███      ███████     ${G} =====${R}  ███████     ███████     ██████     █████     ██    █    ${BR}███${R}"
+	printf "%b\n" "           █████     ██                 ███   ██    ███         ██         ██   █     ██   ██    ${BR}███${R}"
+	printf "%b\n" "          ███  █    ██                 ███    ██    ██         ██         ██   ██    ███  ██    ${BR}██ ██   ${R}"
+	printf "%b\n" "         ███   █   ██                  ████████    ███████    ██         ██   ██    ██ █ ██   ${BR} ██   ██${R}"
+	printf "%b\n" "        ████████  ██            ███    ███  ██     ██        ██          █   ██    ██  ███  ${BR}  ██    ██${R}"
+	printf "%b\n" "       ███     █   ██                  ██   ██    ██          ██         █   █    ██   ██   ${BR} ██      ██${R}"
+	printf "%b\n" "      ███      █ █  ███████ █ ${G}  //===\ ${R} █    █    ████████     ███████   █████    ██   ██   ${BR}██${R}  ${LR} ---${R}${BR} ███${R}"
+	printf "%b\n" "${G}  =============================//     \==================================================${R} ${BR} ██${R}"
+	printf "%b\n" "${G}                                       \ ${R} - ${W}Infrastructure Enumeration tool${R}          ${LR}---${R} ${BR}███${R}"
+	printf "%b\n" "${G}                                        \ ${R} - Author: ${W}${AC_AUTHOR}${R}"
+	printf "%b\n" "${G}                                         \ ${R} - Version: ${W}${AC_V}${R}"
+	printf "%b\n" "${G}                                          \ =======================${R}"
+
+}
+
+
+# emojis and symbols
+G='\e[1;38;2;20;239;16m'
+CU=$'\U0001F9F9'
+UL=$'\e[4m'
+QM=$'\U0002753'
+HERE=$'\U0001F4CD'
+BU=$'\U0001F528'
+OK=$'\U0001F44D'
+BYE=$'\U0001F44B'
+BOOK=$'\U0001F4D7'
+JAIL=$'\U00026D3'
+FACELESS=$'\U0001F464'
+SCAN_ON=$'\U0001F50E'
+GREEN="\e[32m"
+G_B="\e[1;32m"
+YELLOW_BOLD="\e[1;33m"
+YELLOW="\e[33m"
+RESET="\e[0m"
+RED="\e[31m"
+RB="\e[1;31m"
+WHITE_BOLD="\e[1;97m"
+ALERT=$'\U0001F534'
+GL=$'\U0001F7E2'
+POL=$'\U0001F46E'
+CIT=$'\U0001F481'
+DET=$'\U0001F575'
+SMILE=$'\U0001F60E'
+ALT=$'\U0001F590'
+PL=$'\U0001FAF8'
+PR=$'\U0001FAF7'
+DATA=$'\U0001F4BE'
+
+
+# check for parameters reuse
+function check_flag_reuse(){
+	if [[ "$1" -gt 0 ]];then
+		echo -e "\n${ALERT}${RED} Error: flag reuse not allowed.\n${RESET}"
+		usage
+		exit 1
+	fi
+}
+
+# check on corporation name sintax, if correct create a relative directory inside $HOME directory using the corporation name
+function client_dir_name_check(){
+        if [[ "$1" =~ [^[:alnum:]_-] ]];then
+                echo -e "\n${ALERT}${RED}[!] Corporation name contain one or more prohibited characters.${RESET}"
+                echo -e "${YELLOW}  [i] Characters accepted:${RESET} numbers, letters or special chars - or _ \n"
+                echo -e "${BYE}${YELLOW}[i] Exiting, to prevent unpredictable script behaviour.${RESET}"
+                exit 0
+        else
+                cn="${1,,}"
+                echo -e "\n${GL}${GREEN}[+] Corporation name \"$cn\" syntax accepted!${RESET}\n"
+        fi
+
+}
+
+# check on target list IPs syntax
+function ip_list_check() {
+        OCTET="((25[0-5])|(2[0-4][0-9])|(1[0-9][0-9])|([1-9]?[0-9]))"
+        IP_FILTER="^$OCTET\.$OCTET\.$OCTET\.$OCTET$"
+        targets_file="$1"
+        if [[ -e "$targets_file" ]];then
+                echo -e "\n${QM}${YELLOW}Checking IPs syntax:${RESET}"
+		while IFS= read -r t;do
+                        if [[ "$t" =~ $IP_FILTER ]];then
+                                echo -e "${GL}${GREEN}target \"$t\" passed the syntax check${RESET}"
+                                sleep 1
+                        elif [[ -z "$t" ]];then
+                                continue
+                        else
+                                echo -e "\n${ALERT}${RED}target \"$t\" didn't pass the syntax check. Correct it to continue. ${RESET}"
+                                echo -e "\n${BYE}[i] Exiting, to prevent unpredictable script behaviour.\n"
+                                exit 1
+                        fi
+                done < "$targets_file"
+        else
+                echo -e "\n${ALERT}${RED}[!] There is no such file inside your current working dir '$PWD' .\n  Create a file with IP list, one target x line and then try again.${RESET}\n"
+                echo -e "${BYE}${YELLOW} Bye!${RESET}"
+                exit 1
+        fi
+}
+
+# clean up if requirements are not satisfied
+function clean_up () {
+	DIR_OUT="$HOME/ac-reconx-safe/$cn_lowercase"
+	if [[ -d "$DIR_OUT" ]];then
+		if rm -r "$DIR_OUT";then
+			echo -e "\n${CU}${YELLOW} Removing \"$cn_lowercase\" corporation directory from dir \"$HOME/ac-reconx-safe\"${RESET}"
+		else
+			echo -e "\n${ALERT}${RED} Error: failed to remove \"$cn_lowercase\" corporation directory from dir \"$HOME/ac-reconx-safe\"${RESET}"
+		fi
+	else
+		echo -e "\n${ALERT}${RED} Error: \"$cn_lowercase\" corporation directory does not exist in \"$HOME/ac-reconx-safe\"${RESET}"
+	fi
+}
+
+
+# tools check
+## nc, tmux, nmap, zip
+function tool_check () {
+	# check if tool are installed and if not ask for sudo permissions to download them from the APT repository
+	if command -v tmux >/dev/null && command -v nc >/dev/null && command -v nmap >/dev/null && command -v zip > /dev/null;then
+		echo -e "\n${G_B}==============================================\n${OK}[i] Tools requirements satisfied!\n==============================================${RESET}\n"
+        else
+		echo -e "${ALT}${YELLOW_BOLD} One or more tools are missing. Need sudo privileges to install them.${RESET}"
+		while true;do
+			echo -e -n "\n${YELLOW_BOLD} Do you want to proceed? (y/n) ${RESET}"
+			read -r -p "" SP
+			if [[ ! "$SP" =~ ^(y|yes|n|no)$ ]];then
+				echo -e "\n${YELLOW} Please provide a valid answer.${RESET}"
+			else
+				break
+			fi
+		done
+		if [[ ! "${SP,,}" =~ ^(y|yes)$ ]];then
+			clean_up
+			exit 0
+		fi
+
+		if ! sudo -v;then
+			echo -e "\n${ERROR}${RED} Failed to authenticate with sudo.${RESET}"
+			clean_up
+			exit 1
+		fi
+
+		# check each tool is installed and eventually install it to continue
+		tools=("nc" "nmap" "tmux" "zip")
+		for tool in "${tools[@]}";do
+			if ! command -v "$tool" >/dev/null;then
+				if [[ "$tool" == "nc" ]];then
+					tool="netcat-openbsd"
+				fi
+
+				echo -e "\n${YELLOW}[!] \"$tool\" tool not installed. Install it to continue.${RESET}"
+		                while true;do
+		                        read -r -p "[?] Install $tool (y/n) ? " R1
+		                        if [[ ! "${R1,,}" =~ ^(y|yes|n|no)$ ]];then
+						echo -e "\n${YELLOW} Please provide a valid answer.\n${RESET}"
+					else
+						break
+					fi
+				done
+
+				if [[ "${R1,,}" =~ ^(y|yes)$ ]];then
+					if ! sudo apt install "$tool" -y >/dev/null 2>&1;then
+						echo -e "\n${ERROR}${RED} Failed to install \"$tool\" .${RESET}"
+						clean_up
+						exit 1
+					else
+						echo -e "\n${BU}${GREEN} \"$tool\" successfully installed!${RESET}"
+					fi
+				else
+		                	echo -e "\n${BYE}${YELLOW}Tool requirements not satisfied.${RESET}"
+					clean_up
+					exit 1
+				fi
+			fi
+		done
+	fi
+
+}
+
+
+# Functions and variables export for subprocesses
+function copy_tf() {
+	if ! cp "$1" "./targets.txt";then
+		echo -e "${ALERT}${RED} Error while copying the targets file inside $PWD.\nCan't continune whithout targets valid list.${RESET}"
+		echo -e "\n${BYE}${YELLOW}[i] Exiting...${RESET}"
+	exit 1
+fi
+}
+
+
+function greetings() {
+	echo -e "\n${G}=================${WHITE_BOLD}========================${RESET}${RB}=================${RESET}"
+	echo -e "${G}[*][*][*][*]${RESET}     ${WHITE_BOLD}Automated scan completed.${RESET}    ${RB}[*][*][*][*]${RESET}"
+	echo -e "${G}=================${WHITE_BOLD}========================${RESET}${RB}=================${RESET}"
+	echo -e "\n${BYE} Good Ethical Hacking...\n"
+	for ((i=0;i<=3;i++));do
+		sleep 1
+		if [[ "$i" -eq 0 ]];then
+			echo -ne " $CIT"
+			sleep 1
+			echo -n " ... "
+		elif [[ "$i" -eq 1 ]];then
+			echo -en " $DET"
+			sleep 1
+			echo -n " ... "
+		elif [[ "$i" -eq 2 ]];then
+			echo -ne " $POL "
+			sleep 1
+			echo -n " ... "
+		elif [[ "$i" -eq 3 ]];then
+			echo -ne " ${JAIL}${JAIL} ${FACELESS}${JAIL}${JAIL}"
+			sleep 1
+		fi
+	done
+}
+
+function nc_command() {
+	t="$1"
+	target_dir="./${t//./_}/NMAP"
+	echo -e "${SCAN_ON} ${YELLOW}[i] Scanning 65535 ports for open ones on target $t :${RESET}"
+	for p in $(seq 1 65535);do
+		echo "Testing port: $p" | tee -a "$target_dir/nc_open_ports" && timeout 0.5 nc -nvz "$t" "$p" 2>&1 | grep open | tee -a "$target_dir/nc_open_ports"
+	done
+        echo -e "${GREEN}\n[!] Netcat scan COMPLETED on target '$t'.\n##########################################${RESET}\n\n"
+}
+
+# netcat scan marker check before closing scanner, if no zip flag is used then no need to check. The nc_open_ports files will be updated until the netcat
+## scanner process are alive
+function nc_marker_check () {
+	echo -e "\n${ALT}${YELLOW_BOLD} Almost there! Waiting nc scans to be completed(necessary to create a COMPLETE zip file).${RESET}"
+	scan_completed=0
+	ct=0
+	while IFS= read -r _;do
+		ct=$((ct+1))
+	done < "./alive_targets.txt"
+
+	total_targets="$ct"
+	echo -e "Netcat scan status: [ $scan_completed / $total_targets]"
+
+	while IFS= read -r t;do
+		nc_m="./${t//./_}/NMAP/.nc_completed"
+		while [[ ! -f "$nc_m" ]];do
+			sleep 1
+		done
+		scan_completed=$((scan_completed+1))
+		echo -e "\n${GREEN} nc scan for target \"$t\" completed.${RESET}"
+		echo -e "Netcat scan status: [ $scan_completed / $total_targets]"
+	done < "$1"
+}
+
+# Export delle variabili per le sotto shell(NETCAT command)
+export GREEN RESET YELLOW SCAN_ON
+export -f nc_command
+
+
+# Usage
+function usage(){
+	PROGNAME="$(basename "$0")"
+        echo -e "\n\n${BOOK}${YELLOW}[i] Usage: $PROGNAME  [options] -C <corporation_name> -T <targets list>${RESET}"
+        echo -e "\n${UL}available options${RESET}:\n\n-v\t--verbose\t\t\tknow more about this rudimental recon tool, print description and exit;"
+	echo -e "-q\t--no-banner\t\t\tavoid stamp awesome handcrafted banner :("
+	echo -e "-z\t--zip\t\t\t\tcollect scan results inside a zip file, named with a unique progressive(time-based) filename;"
+	echo -e "-C\t--corp-name (mandatory)\t\tcorporation name that you are assessing. A directory with that 'corporation_name' will be created.\n\t\t\t\t\tIt will storage all recon evidences;"
+        echo -e "-T\t--targets-list (mandatory)\tFile containing targets to analyze, one target per line;\n"
+}
+
+# verbose mode on, an in-depth look at what this utily script do
+
+function description(){
+        echo -e "\n${YELLOW}[i] Description:${RESET} a simple bash script designed to speed up the initial reconnaisance phase by automating the tedious manual process\n\t\tof analyze a target IP list, providing a quick and structured overview of the environment to assess."
+        echo -e "\t\tThis allow the penetration tester to save time and effort to focus on deeper manual analysis."
+        echo -e "\t\tThe script will execute the following actions in order:\n\t\t\t1) Nmap host discovery scan, to identify which targets are \"alive\";\n\t\t\t2) Nmap full TCP port scan (1-65535) at speed -T 4, enumerating only responsives open ports;\n\t\t\t2.1) Netcat scans for each alive target inside a tmux window to verify or exapnd\n\t\t\t     upon the Nmap scan results after completion (potentially uncover unresponsive/filtered TCP open ports);\n\t\t\t3) Nmap service version detection ( -sV, default intensity) and default NSE script scan (-sC) targeting only\n\t\t\tthe open ports discovered in the previous step;\n\t\t\t4) save all the evidences inside a zip file within your $HOME directory, under a subdirectory named\n\t\t\t after the -C <corporation_name> parameter;"
+        echo -e "\n${BYE}${G_B}Hope it will speed up your ethical hacking activites as it does for me.${RESET}"
+}
+
+function compressionToZip(){
+	zip_file="$1"
+	echo -e "\n${PL}${DATA}${PR}${YELLOW_BOLD}[i] I'm trying compressing results:${RESET}"
+	if zip -9qr "$zip_file.zip" "$2" ; then # $1 need to be the directory $cn_lowercase or $dirname and $2 all the output from that directory (*)
+		echo -e "\n${BU}${GREEN}[i] \"$zip_file.zip\" successfully created.${RESET}"
+	else
+		echo -e "\n${ALERT}${RED}[i] Error: could't create \"$zip_file.zip\". ${RESET}"
+	fi
+}
+
+# iterating various cases of input parameters inserted by the utilizer and prevent flag reutilization
+t_f=0
+c_f=0
+z_f=0
+q_f=0
+v_f=0
+
+# using the executable without arguments, call the usage function to let users see how to use this tool
+if [[ "$#" -eq 0 ]];then
+	ac_banner
+	usage
+	exit 0
+fi
+
+# Set VERBOSE variable to false by default
+VERBOSE="false"
+
+while [[ "$#" -gt 0 ]];do
+        case "$1" in
+		# know more about this script
+                -v|--verbose)
+			if [[ "$v_f" -eq 0 && "$VERBOSE" == "false" ]];then
+				VERBOSE="true"
+			else
+				VERBOSE="false"
+			fi
+			check_flag_reuse "$v_f"
+			v_f=$((v_f+1))
+			shift
+                        ;;
+		-q|--no-banner)
+			check_flag_reuse "$q_f"
+			q_f=$((q_f+1))
+			BANNER="false"
+			shift
+			;;
+		# compress all the ouput inside a zip file
+                -z|--zip)
+			check_flag_reuse "$z_f"
+			z_f=$((z_f+1))
+			ZIP_FILE="true"
+                        shift
+			;;
+		# specify the target list of IPs you want to assess
+                -T|--targets-list)
+                        if [[ -n "$2" && "$2" != -* ]];then
+                                check_flag_reuse "$t_f"
+				t_f=$((t_f+1))
+				TARGETS_FILE="$2"
+                                shift 2
+                        else
+                                echo -e "\n${ALT}${YELLOW} Error: need targets filename, one IP x line.${RESET}"
+                                exit 1
+                        fi
+                        ;;
+		# specify the corporation name you are working on
+		-C|--corp-name)
+			if [[ -n "$2" && "$2" != -* ]];then
+				check_flag_reuse "$c_f"
+				c_f=$((c_f+1))
+				CORP_NAME="$2"
+				shift 2
+			else
+				echo -e "\n${RED}Error: need corporation name. ${RESET}"
+			fi
+			;;
+		# all other unpredictable/unprocessable options
+                *)
+                        echo -e "\n${RED}Unknown option.${RESET}"
+                        usage
+                        exit 1
+                        ;;
+        esac
+done
+
+
+REQUIREMENTS="false"
+
+# call banner
+if [[ "$BANNER" == "true" ]];then
+	ac_banner
+fi
+
+# Validate given parameter values
+
+if [[ "$VERBOSE" == "true" ]];then
+	usage && description && exit 0
+elif [[ "$ZIP_FILE" == "true" && -z "$TARGETS_FILE" && -z "$CORP_NAME" ]];then
+	echo -e "\n${ALT}${RED} Nothing to zip without a corporation name (-C , --corp-name) and a targets file (-T , --targets-list)."
+	usage
+
+elif [[ "$ZIP_FILE" == "true" && -z "$CORP_NAME" && ! -z "$TARGETS_FILE" ]];then
+	echo -e "\n${ALT}${RED} Nothing to zip without a corporation name (-C , --corp-name)."
+	usage
+elif [[ "$ZIP_FILE" == "true" && -z "$TARGETS_FILE" && ! -z "$CORP_NAME" ]];then
+	echo -e "\n${ALT}${RED} Nothing to zip without a valid targets file (-T , --targets-list)."
+elif [[ -n "$CORP_NAME" && -n "$TARGETS_FILE" ]];then
+	REQUIREMENTS="true"
+elif [[ -z "$CORP_NAME" && -z "$TARGETS_FILE" ]];then
+	echo -e "\n${ALT}${RED} Missing corporation name (-C , --corp-name) and targets file (-T , --targets-list)."
+	usage
+elif [[ -z "$CORP_NAME" ]];then
+	echo -e "\n${ALT}${RED} Missing corporation name (-C , --corp-name)."
+	usage
+elif [[ -z "$TARGETS_FILE" ]];then
+	echo -e "\n${ALT}${RED} Missing targets file (-T , --targets-list)."
+	usage
+fi
+
+if "$REQUIREMENTS";then
+	echo -e "\n${OK}${G_B}Parameters accepted, now checking corp name/IPs sintax and file validity.${RESET}"
+else
+	exit 1
+fi
+
+
+# check first and second argument sintax
+
+if [[ -n "$CORP_NAME" && -n "$TARGETS_FILE" ]];then
+	if client_dir_name_check "$CORP_NAME" && ip_list_check "$TARGETS_FILE" ;then
+		echo -e "\n${G_B}==============================================\n${OK}[+] Valid corporation name and IPs targets file.\n==============================================${RESET}\n"
+	else
+		echo -e "\n${ALERT}${RED}[!] Invalid inputs.\nExiting...${RESET}"
+		exit 1
+	fi
+fi
+
+# copy each target indicated inside the target file list inside the relative corporation directory
+tf_absolute_path="$(realpath "$TARGETS_FILE")"
+
+# check if corporation directory name already exist or eventually create it inside your $HOME/ac-reconx-safe dir by default
+cn_lowercase="${CORP_NAME,,}"
+if [[ ! -d "$HOME/ac-reconx-safe" ]];then
+	mkdir -p "$HOME/ac-reconx-safe"
+	echo -e "\n${BU}${GREEN}Default directory \"$HOME/ac-reconx-safe\" successfully created.${RESET}"
+else
+	echo -e "\n${OK}${GREEN}[i] Main directory \"$HOME/ac-reconx-safe\" already present.${RESET}"
+fi
+
+if [[ -d "$HOME/ac-reconx-safe/$cn_lowercase" ]];then
+	echo -e "\n${YELLOW}==============================================\n${ALT} [i]  Directory ${WHITE_BOLD}$cn_lowercase${RESET}${YELLOW} already exist in \"$HOME/ac-reconx-safe\" .${RESET}"
+	echo -e "${YELLOW}\tCreate a new directory called: ${WHITE_BOLD}$cn_lowercase-2${RESET} ${YELLOW}or${RESET} ${WHITE_BOLD}$cn_lowercase-3${RESET}${YELLOW} and so on, to prevent overwriting\n\tand to store findings inside it instead?\n==============================================${RESET}"
+	R3=''
+	while [[ ! "$R3" =~ ^(y|yes|no|n)$ ]];do
+		read -r -p "[?] Type Y/N : " R3
+		if [[ "${R3,,}" =~ ^(y|yes)$ ]];then
+			break
+		elif [[ "${R3,,}" =~ ^(n|no)$ ]];then
+			echo -e "\n${BYE}${YELLOW}[i] Exiting to prevent overwriting.${RESET}"
+			exit 0
+		else
+			echo -e "\n${YELLOW}[!] Type a valid answer.\n${RESET}\n"
+		fi
+
+	done
+	counter=1
+	basename="$cn_lowercase"
+	dirname="$basename"
+	while [[ -d "$HOME/ac-reconx-safe/$dirname" ]];do
+		((counter++))
+		dirname="$basename-$counter"
+	done
+	if mkdir "$HOME/ac-reconx-safe/$dirname";then
+		echo -e "\n${OK}${GREEN}[+] Directory \"$HOME/ac-reconx-safe/$dirname\" successfully created.${RESET}\n"
+		cd "$HOME/ac-reconx-safe/$dirname"
+		copy_tf "$tf_absolute_path"
+	else
+		echo -e "\n${ALERT}${RED}[!] Error while creating client directory in \"$HOME/ac-reconx-safe\"${RESET}"
+		exit 1
+	fi
+else
+	if mkdir "$HOME/ac-reconx-safe/$cn_lowercase";then
+		echo -e "\n${BU}${GREEN}[i] Client directory \"$cn_lowercase\" created.${RESET}\n"
+		cd "$HOME/ac-reconx-safe/$cn_lowercase"
+		copy_tf "$tf_absolute_path"
+	else
+		echo -e "\n${ALERT}${RED}[!] Error while creating client directory \"$HOME/ac-reconx-safe/$cn_lowercase\"${RESET}"
+		exit 1
+	fi
+fi
+
+
+# call the tool check function
+tool_check
+
+# if tool check is passed then start the assessment
+
+if [[ -n "$dirname" ]];then
+	if [[ "$cn_lowercase" == "$dirname" ]];then
+		RM_DIR="$cn_lowercase"
+	else
+		RM_DIR="$dirname"
+	fi
+else
+	RM_DIR="$cn_lowercase"
+fi
+
+# confirming directory or quit and delete?
+echo -e "\n${HERE}${GREEN}[i] Current working directory: ${PWD}${RESET}"
+echo -e "\n${ALT} ${YELLOW_BOLD}Are you working on corporation \"$(basename "$PWD")\" ?${RESET}"
+read -r -p "Type \"yes|y\" to continue or anything else to quit. "
+if [[ ! "${REPLY,,}" =~ ^(y|yes|yep|yeah)$ ]];then
+	rm -r "../$RM_DIR"
+	echo -e "\n${BYE}${GREEN}[i] Exiting & cleaning things up.${RESET}"
+	exit 0
+fi
+
+# Creating directory one per target
+echo -e "\n${BU}${YELLOW}[i] Creating directories, one for target${RESET}"
+while IFS= read -r t ; do
+	[[ -z "$t" ]] && continue
+	target_dir="./${t//./_}"
+	mkdir -p "$target_dir/NMAP"
+done < "./targets.txt"
+
+echo -e "${WHITE_BOLD}\n==============================================\n[+] Created target directories."
+echo -e "==============================================\n${RESET}"
+
+
+# listing new directories
+tree "$PWD"
+
+# check if targets are alive and creating relative file
+nmap --disable-arp-ping -n -sn -iL "./targets.txt" | grep -v 'host down' | grep "Nmap scan report for" | awk '{print $NF}' | tee "./alive_targets.txt"
+echo -e "${WHITE_BOLD}\n=============================================\n[+] Created a list of alive targets, called './alive_targets.txt'."
+echo -e "=============================================${RESET}\n"
+
+
+# Strating a NETCAT slow scanner in order to find sneeky open ports
+if ! command -v tmux >/dev/null;then
+	echo -e "\n${ALERT}${RED}[!] 'tmux' tool is not installed. To continue the script you need to install it.${RESET}\n"
+	read -r -p "[?] Install tmux? (Y/N) " R1
+	if [[ "${R1,,}" =~ (y|yes) ]];then
+		sudo apt install tmux -y
+	else
+		echo -e "\n=============================================\n${YELLOW_BOLD}[i] Exiting the scanner. Bye!"
+		echo -e "=============================================${RESET}\n"
+		exit 0
+	fi
+fi
+
+# Create a valid session name
+SESSION="NetcatScans_$(basename "$PWD")_$(date +%d-%m-%Y)"
+if tmux new-session -d -s "$SESSION" -n "nc_scan";then
+	echo -e "\n${G_B}[!] Created TMUX new session:${RESET}"
+	tmux ls
+else
+	echo -e "\n${ALERT}${RED}[!] Failed to create tmux session.${RESET}"
+	exit 1
+fi
+
+while IFS= read -r t;do
+        [[ -z "$t" ]] && continue
+	nc_marker="./${t//./_}/NMAP/.nc_completed"
+	rm -f "$nc_marker"
+        echo -e "${SCAN_ON} ${YELLOW}[i] Opening window inside TMUX session, searching for open ports using rudimental NETCAT scanner on target: $t${RESET}\n"
+	tmux new-window -d -t "$SESSION" -n "$t" "bash -c 'nc_command \"$t\"; touch \"$nc_marker\";exec bash'" && sleep 2 || echo -e "\n${ALERT}${RED}[-] Failed to execute netcat scan for target '$t'.${RESET}\n"
+done < "./alive_targets.txt"
+
+echo -e "${BOOK}${GREEN}[i] Use this command to attach on current Tmux session:${RESET}"
+echo -e "qterminal -w $PWD -e bash -c 'tmux attach-session -t $SESSION' 2>/dev/null\n"
+echo -e "${BOOK}${YELLOW_BOLD} Inside tmux session, use:${RESET}"
+echo -e "${YELLOW}\t Press \"Ctrl+b\" and then \"w\" to list and select the target you want.${RESET}"
+echo -e "${YELLOW}\t Press \"Ctrl+b\" and then \"d\" to detach from tmux client.${RESET}"
+echo -e "\n${YELLOW_BOLD}   When netcat scans are finished, use this command to kill the client session:${RESET}"
+echo -e "\t${YELLOW} tmux ls | grep $SESSION ${RESET}\t# list tmux ac-recox active session;"
+echo -e "\t${YELLOW} tmux kill-session -t <session_name>${RESET}\t# kill a specific session;"
+echo -e "\n${ALT}${YELLOW_BOLD}  N.B.: ${UL}Netcat scans will likely finish after Nmap scans, you'll probably hear your PC suffer in background.${RESET}\n        ${YELLOW_BOLD} ${UL}Do not panic!${RESET}"
+
+echo -e "${WHITE_BOLD}\n=============================================\n[+] Netcat scans are running on all available targets."
+echo -e "=============================================${RESET}\n"
+
+
+
+# doing nmap scan searching for open ports
+while IFS= read -r t;do
+	[[ -z "$t" ]] && continue
+	target_dir="./${t//./_}"
+	echo -e "${SCAN_ON} ${YELLOW}[i] Searching for open ports over 65535 available ports on target $t :${RESET}"
+	nmap --open -Pn -n -vv -p- -T4 -oN "$target_dir/NMAP/open_ports" "$t"
+	echo -e "${GREEN}\n[!] Target $t COMPLETED\n\n##########################################${RESET}\n\n"
+done < "./alive_targets.txt"
+
+echo -e "${WHITE_BOLD}\n=============================================\n[+] Open ports file created for every target that is alive."
+echo -e "=============================================${RESET}\n"
+
+
+# listing tree
+tree "$PWD"
+
+# creating port list for nmap ServiceVersionScan and NSE Scan
+echo -e "\n${BU}${YELLOW}[i] Creating file with the open ports for each target inside its directory, called 'ports_list_4_nmap.txt'.${RESET}"
+while IFS= read -r t;do
+	[[ -z "$t" ]] && continue
+	target_dir="./${t//./_}"
+	open_ports_file="$target_dir/NMAP/open_ports"
+	if [[ -s "$open_ports_file" ]];then
+		grep "^[0-9]" "$target_dir/NMAP/open_ports" | cut -d '/' -f1 | sed ':a;N;$!ba;s/\n/,/g' > "$target_dir/NMAP/ports_list_4_nmap"
+	else
+		echo -e "${YELLOW_BOLD}[!] Open port file do non exist or is empty.${RESET}"
+	fi
+done < "./alive_targets.txt"
+
+echo -e "\n${WHITE_BOLD}=============================================\n[+] Ports list files created for every target."
+echo -e "=============================================${RESET}\n"
+
+
+# list tree
+tree "$PWD"
+
+
+# nmap service version scan and NSE script scan on open ports
+echo -e "\n${YELLOW}[i] Running nmap scan to detect service version(aka fingerprint) and executing NSE default scripts on them:${RESET}"
+
+while IFS= read -r t;do
+	[[ -z "$t" ]] && continue
+	target_dir="./${t//./_}"
+	ports_file="$target_dir/NMAP/ports_list_4_nmap"
+	if [[ -s "$ports_file" ]];then
+		echo -e "\n${SCAN_ON} ${YELLOW}[i] Scanning target $t :${RESET}"
+		nmap -Pn -n -p "$(cat "$ports_file")" -vv -sVC -oA "$target_dir/NMAP/nmap_VScan_NSEScan" "$t"
+		echo -e "${GL}${GREEN}[!] Scan COMPLETED over target $t\n##########################################\n${RESET}"
+		sleep 3
+	else
+		echo -e "\n${YELLOW_BOLD}[!] Target $t doesn't expose open ports to scan.${RESET}"
+		sleep 3
+	fi
+done < "./alive_targets.txt"
+echo -e "\n${WHITE_BOLD}=============================================\n[+] Nmap version scan and script scan COMPLETED for every target that is alive and has open ports."
+echo -e "=============================================${RESET}\n"
+
+
+# zip all the results inside CWD after checking nc scan completion
+RESULTS_LOCATION="$HOME/ac-reconx-safe/$(basename "$PWD")"
+ZIP_PART_FN="ac-reconx_$(basename "$PWD")_partial_$(date +%d-%B-%Y)"
+ZIP_COMP_FN="ac-reconx_$(basename "$PWD")_complete_$(date +%d-%B-%Y)"
+if [[ -n "$ZIP_FILE" && "$ZIP_FILE" == "true" ]];then
+	compressionToZip "$ZIP_PART_FN" "$RESULTS_LOCATION"
+	if nc_marker_check "./alive_targets.txt";then
+		if compressionToZip "$ZIP_COMP_FN" "$RESULTS_LOCATION";then
+			rm "$ZIP_PART_FN.zip"
+			echo -e "\n${CU}${YELLOW} Partial zip file removed.${RESET}"
+		fi
+		echo -e "\n${GREEN} Closing TMUX session.${RESET}\n Do this command in order to filter open ports:\ngrep \"open\" <nc_open_ports> file."
+		tmux kill-session -t "$SESSION"
+	else
+		echo -e "${RED} Error: failed to compress complete nc scans results.${RESET}"
+	fi
+fi
+
+# Results location and results overview
+echo -e "\n${HERE}${GREEN} Inspect results here: \"$RESULTS_LOCATION\"${RESET}"
+
+# Automated scan completed
+greetings
